@@ -11,3 +11,9 @@ repository = "https://github.com/TianyiShi2001/kdtree"
 
 [dependencies]
 num-traits = "0.2.14"
+ordered-float = "2.0.1"
+
+[dev-dependencies]
+lazy_static = "1.4.0"
+rand = "0.8.0"
+
