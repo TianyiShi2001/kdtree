@@ -1,2 +1,3 @@
 # kdtree
-k-dimensional tree in Rust
+
+k-dimensional tree implementeed in Rust with const generics

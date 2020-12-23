@@ -10,3 +10,4 @@ repository = "https://github.com/TianyiShi2001/kdtree"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+num-traits = "0.2.14"
