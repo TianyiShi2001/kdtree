@@ -1,9 +1,10 @@
+//! A k-dimensional tree data structure
+
 #![feature(min_const_generics)]
 #![feature(binary_heap_into_iter_sorted)]
 
 pub mod point;
-pub mod with_bounds;
-use point::*;
+pub use point::*;
 
 use num_traits::Float;
 use ordered_float::OrderedFloat;
@@ -32,7 +33,7 @@ pub struct KdTree<T: PartialOrd + PartialEq + Clone, const DIM: usize> {
     root: Option<Box<Node<T, DIM>>>,
 }
 
-impl<T: PartialOrd + PartialEq + Clone + Clone, const DIM: usize> KdTree<T, DIM> {
+impl<T: PartialOrd + PartialEq + Clone + Debug, const DIM: usize> KdTree<T, DIM> {
     pub fn dim() -> usize {
         DIM
     }
@@ -41,8 +42,8 @@ impl<T: PartialOrd + PartialEq + Clone + Clone, const DIM: usize> KdTree<T, DIM>
             points: &mut [Point<T, DIM>],
             depth: usize,
         ) -> Option<Box<Node<T, DIM>>> {
-            let d = depth / DIM;
-            points.sort_unstable_by(|a, b| a.partial_cmp(&b).unwrap());
+            let d = depth % DIM;
+            points.sort_unstable_by(|a, b| a[d].partial_cmp(&b[d]).unwrap());
             let mut mid = points.len() / 2;
             let val = &points[mid][d];
             // ensure that points to the right of the pivot are strictly greater
@@ -118,123 +119,7 @@ impl<T: PartialOrd + PartialEq + Clone + Clone, const DIM: usize> KdTree<T, DIM>
 }
 
 impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize> KdTree<T, DIM> {
-    pub fn knearestneighbors(&self, query: &Point<T, DIM>, k: usize) -> Vec<&Point<T, DIM>> {
-        let mut res_pq: BinaryHeap<(OrderedFloat<T>, *const Point<T, DIM>)> =
-            BinaryHeap::with_capacity(k);
-        fn knn<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize>(
-            node: Option<&Box<Node<T, DIM>>>,
-            depth: usize,
-            query: &Point<T, DIM>,
-            min_bound: &mut [T; DIM],
-            max_bound: &mut [T; DIM],
-            result_pq: &mut BinaryHeap<(OrderedFloat<T>, *const Point<T, DIM>)>,
-            k: usize,
-        ) {
-            if let Some(curr) = node {
-                let d = depth % DIM;
-                let val = &curr.pivot[d];
-                let dist = curr.pivot.squared_eucledian(query);
-                if result_pq.len() < k {
-                    result_pq.push((OrderedFloat(dist), &curr.pivot as *const Point<T, DIM>));
-                } else {
-                    // Get the longest distance.
-
-                    let mx = result_pq
-                        .peek()
-                        .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
-
-                    if dist < mx {
-                        result_pq.pop().unwrap();
-                        result_pq.push((OrderedFloat(dist), &curr.pivot as *const Point<T, DIM>));
-                    }
-                }
-                if &query[d] <= val {
-                    let tmp = max_bound[d];
-                    max_bound[d] = *val;
-                    knn(
-                        curr.left.as_ref(),
-                        depth + 1,
-                        query,
-                        min_bound,
-                        max_bound,
-                        result_pq,
-                        k,
-                    );
-
-                    // Get the longest distance.
-                    let mx = result_pq
-                        .peek()
-                        .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
-
-                    if query.distance_to_space(min_bound, max_bound) < mx {
-                        min_bound[d] = *val;
-                        max_bound[d] = tmp;
-                        knn(
-                            curr.right.as_ref(),
-                            depth + 1,
-                            query,
-                            min_bound,
-                            max_bound,
-                            result_pq,
-                            k,
-                        );
-                        min_bound[d] = tmp;
-                    } else {
-                        max_bound[d] = tmp;
-                    }
-                } else {
-                    let tmp = min_bound[d];
-                    min_bound[d] = *val;
-                    knn(
-                        curr.right.as_ref(),
-                        depth + 1,
-                        query,
-                        min_bound,
-                        max_bound,
-                        result_pq,
-                        k,
-                    );
-                    min_bound[d] = tmp;
-
-                    let mx = result_pq
-                        .peek()
-                        .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
-
-                    if query.distance_to_space(min_bound, max_bound) < mx {
-                        max_bound[d] = *val;
-                        min_bound[d] = tmp;
-                        knn(
-                            curr.left.as_ref(),
-                            depth + 1,
-                            query,
-                            min_bound,
-                            max_bound,
-                            result_pq,
-                            k,
-                        );
-                        max_bound[d] = tmp;
-                    } else {
-                        min_bound[d] = tmp;
-                    }
-                }
-            }
-        }
-        knn(
-            self.root.as_ref(),
-            0,
-            query,
-            &mut [T::neg_infinity(); DIM],
-            &mut [T::infinity(); DIM],
-            &mut res_pq,
-            k,
-        );
-
-        res_pq
-            .into_iter_sorted()
-            .map(|(dist, point)| unsafe { point.as_ref().unwrap() })
-            .collect()
-    }
-    pub fn _knearestneighbors(&self, query: &Point<T, DIM>, k: usize) -> Vec<(T, &Point<T, DIM>)> {
+    pub fn knearestneighbors(&self, query: &Point<T, DIM>, k: usize) -> Vec<(T, &Point<T, DIM>)> {
         let mut res_pq: BinaryHeap<(OrderedFloat<T>, *const Point<T, DIM>)> =
             BinaryHeap::with_capacity(k);
         fn knn<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize>(
@@ -259,15 +144,6 @@ impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize
                         .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
 
                     if dist < mx {
-                        println!(
-                            "{:?}",
-                            result_pq
-                                .clone()
-                                .into_iter_sorted()
-                                .map(|x| x.0.into_inner())
-                                .collect::<Vec<_>>()
-                        );
-                        println!("{:?}", (dist, mx));
                         result_pq.pop().unwrap();
                         result_pq.push((OrderedFloat(dist), &curr.pivot as *const Point<T, DIM>));
                     }
@@ -292,7 +168,7 @@ impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize
                         .peek()
                         .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
 
-                    if query.distance_to_space(&new_min_bound, max_bound) < mx {
+                    if query.distance_to_space(&new_min_bound, max_bound) <= mx {
                         knn(
                             curr.right.as_ref(),
                             depth + 1,
@@ -318,7 +194,7 @@ impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize
                         .peek()
                         .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
 
-                    if query.distance_to_space(min_bound, &new_max_bound) < mx {
+                    if query.distance_to_space(min_bound, &new_max_bound) <= mx {
                         knn(
                             curr.left.as_ref(),
                             depth + 1,
@@ -349,14 +225,11 @@ impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize
     }
 }
 
-// fn distance_to_space<F: Float, T: FloatPoint<F>>(p1: &T, min_bounds: &T, max_bounds: &T) -> T{
-//     let mut p2 = []
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     // use lazy_static::lazy_static;
+
     use rand::{thread_rng, Rng};
 
     #[test]
@@ -374,31 +247,18 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         let kdt = KdTree::from_slice(&mut points);
-        // println!("{:?}", kdt);
         let query = Point([0.0, 0.0, 0.0]);
-        let mut nearest = kdt._knearestneighbors(&query, 10);
-        nearest.reverse();
-        println!("{:?}", nearest);
-        let mut points = points
+        let nearest = kdt
+            .knearestneighbors(&query, 10)
+            .into_iter()
+            .map(|(dist, point)| (dist, point.clone()))
+            .rev()
+            .collect::<Vec<_>>();
+        let mut expected = points
             .into_iter()
             .map(|p| (p.squared_eucledian(&query), p))
             .collect::<Vec<_>>();
-        points.sort_unstable_by_key(|p| OrderedFloat(p.0));
-        println!("{:?}", &points[..10]);
-        // let mut kdt = KdTree::<i32, 3>::default();
-        // kdt.insert([1, 2, 3]);
-        // kdt.insert([5, 1, -6]);
-        // kdt.insert([5, 1, -4]);
-        // kdt.insert([3, 6, 8]);
-        // kdt.insert([2, 4, 6]);
-        // kdt.insert([8, 0, 1]);
-        // assert!(kdt.contains(&[1, 2, 3]));
-        // assert!(kdt.contains(&[5, 1, -6]));
-        // assert!(kdt.contains(&[5, 1, -4]));
-        // assert!(kdt.contains(&[3, 6, 8]));
-        // assert!(kdt.contains(&[2, 4, 6]));
-        // assert!(kdt.contains(&[8, 0, 1]));
-        // assert!(!kdt.contains(&[1, 2, 4]));
-        // assert!(!kdt.contains(&[0, 3, 1]));
+        expected.sort_unstable_by_key(|p| OrderedFloat(p.0));
+        assert_eq!(&nearest[..], &expected[..10]);
     }
 }
