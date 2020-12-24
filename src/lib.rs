@@ -119,15 +119,15 @@ impl<T: PartialOrd + PartialEq + Clone + Debug, const DIM: usize> KdTree<T, DIM>
 }
 
 impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize> KdTree<T, DIM> {
-    pub fn knearestneighbors(&self, query: &Point<T, DIM>, k: usize) -> Vec<(T, &Point<T, DIM>)> {
+    pub fn k_nearest_neighbors(&self, query: &Point<T, DIM>, k: usize) -> Vec<(T, &Point<T, DIM>)> {
         let mut res_pq: BinaryHeap<(OrderedFloat<T>, *const Point<T, DIM>)> =
             BinaryHeap::with_capacity(k);
         fn knn<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize>(
             node: Option<&Box<Node<T, DIM>>>,
             depth: usize,
             query: &Point<T, DIM>,
-            min_bound: &[T; DIM],
-            max_bound: &[T; DIM],
+            min_bounds: &mut [T; DIM],
+            max_bounds: &mut [T; DIM],
             result_pq: &mut BinaryHeap<(OrderedFloat<T>, *const Point<T, DIM>)>,
             k: usize,
         ) {
@@ -148,63 +148,72 @@ impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize
                         result_pq.push((OrderedFloat(dist), &curr.pivot as *const Point<T, DIM>));
                     }
                 }
-                let mut new_min_bound = min_bound.clone();
-                let mut new_max_bound = max_bound.clone();
-                new_max_bound[d] = *val;
-                new_min_bound[d] = *val;
+
                 if &query[d] <= val {
+                    let tmp = max_bounds[d];
+                    max_bounds[d] = *val;
                     knn(
                         curr.left.as_ref(),
                         depth + 1,
                         query,
-                        min_bound,
-                        &new_max_bound,
+                        min_bounds,
+                        max_bounds,
                         result_pq,
                         k,
                     );
+                    max_bounds[d] = tmp;
 
                     // Get the longest distance.
                     let mx = result_pq
                         .peek()
                         .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
 
-                    if query.distance_to_space(&new_min_bound, max_bound) <= mx {
+                    let tmp = min_bounds[d];
+                    min_bounds[d] = *val;
+                    if query.distance_to_space(min_bounds, max_bounds) <= mx {
                         knn(
                             curr.right.as_ref(),
                             depth + 1,
                             query,
-                            &new_min_bound,
-                            max_bound,
+                            min_bounds,
+                            max_bounds,
                             result_pq,
                             k,
                         );
                     }
+                    min_bounds[d] = tmp;
                 } else {
+                    let tmp = min_bounds[d];
+                    min_bounds[d] = *val;
                     knn(
                         curr.right.as_ref(),
                         depth + 1,
                         query,
-                        &new_min_bound,
-                        max_bound,
+                        min_bounds,
+                        max_bounds,
                         result_pq,
                         k,
                     );
+                    min_bounds[d] = tmp;
 
                     let mx = result_pq
                         .peek()
                         .map_or(T::infinity(), |(dist, _p)| dist.into_inner());
 
-                    if query.distance_to_space(min_bound, &new_max_bound) <= mx {
+                    let tmp = max_bounds[d];
+                    max_bounds[d] = *val;
+                    if query.distance_to_space(min_bounds, max_bounds) <= mx {
                         knn(
                             curr.left.as_ref(),
                             depth + 1,
                             query,
-                            min_bound,
-                            &new_max_bound,
+                            min_bounds,
+                            max_bounds,
                             result_pq,
                             k,
                         );
                     }
+                    max_bounds[d] = tmp;
                 }
             }
         }
@@ -228,7 +237,6 @@ impl<T: PartialOrd + PartialEq + Clone + Clone + Float + Debug, const DIM: usize
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use lazy_static::lazy_static;
 
     use rand::{thread_rng, Rng};
 
@@ -236,7 +244,7 @@ mod tests {
     fn kdtree() {
         let mut points = {
             let mut rng = thread_rng();
-            (0..100)
+            (0..10000)
                 .map(|_| {
                     Point([
                         rng.gen_range(-50.0..50.0),
@@ -249,7 +257,7 @@ mod tests {
         let kdt = KdTree::from_slice(&mut points);
         let query = Point([0.0, 0.0, 0.0]);
         let nearest = kdt
-            .knearestneighbors(&query, 10)
+            .k_nearest_neighbors(&query, 10)
             .into_iter()
             .map(|(dist, point)| (dist, point.clone()))
             .rev()

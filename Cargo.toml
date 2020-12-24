@@ -1,5 +1,5 @@
 [package]
-name = "kd_tree"
+name = "kdt"
 version = "0.0.1"
 authors = ["Tianyi Shi <ShiTianyi2001@outlook.com>"]
 edition = "2018"
@@ -12,9 +12,10 @@ repository = "https://github.com/TianyiShi2001/kdtree"
 [dependencies]
 num-traits = "0.2.14"
 ordered-float = "2.0.1"
+rand = "0.8.0"
 
 [dev-dependencies]
 kdtree = "0.6.0"
 lazy_static = "1.4.0"
-rand = "0.8.0"
+#rand = "0.8.0"
 
